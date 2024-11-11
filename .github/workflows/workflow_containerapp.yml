@@ -6,12 +6,31 @@ name: Build and Deploy to Container App
 on:
   workflow_dispatch:
 
+permissions:
+  id-token: write
+
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    
     steps:
+    - name: Login to Azure
+      uses: azure/login@v2
+      with:
+          client-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          subscription-id: ${{ secrets.SUB_ID }}
+    - name: Get Latest Container Image Tag
+      id: get_tag
+      run: |
+          TAG=$(az acr repository show-tags --name microhackcontainerregistrytim --repository microhackapp --orderby time_desc --output tsv --detail | head -n 1 | awk '{print $4}')
+          NUMERIC_TAG=$(echo "$TAG" | grep -oE '[0-9]+')
+          INCREMENTED_TAG=$((NUMERIC_TAG + 1))
+          UPDATED_TAG=$(echo "$TAG" | sed "s/$NUMERIC_TAG/$INCREMENTED_TAG/")
+          echo "image_tag=$UPDATED_TAG" >> $GITHUB_OUTPUT
+          
     - uses: actions/checkout@v4
     #- name: Setup .NET
      # uses: actions/setup-dotnet@v4
@@ -23,11 +42,4 @@ jobs:
         docker build -t microhackcontainerregistrytim.azurecr.io/microhackapp:1 -f Dockerfile . &&
         docker push microhackcontainerregistrytim.azurecr.io/microhackapp:1
     
-    - name: Get Latest Container Image Tag
-      id: get_tag
-      run: |
-          TAG=$(az acr repository show-tags --name microhackregistry --repository microhackapp --orderby time_desc --output tsv --detail | head -n 1 | awk '{print $4}')
-          NUMERIC_TAG=$(echo "$TAG" | grep -oE '[0-9]+')
-          INCREMENTED_TAG=$((NUMERIC_TAG + 1))
-          UPDATED_TAG=$(echo "$TAG" | sed "s/$NUMERIC_TAG/$INCREMENTED_TAG/")
-          echo "image_tag=$UPDATED_TAG" >> $GITHUB_OUTPUT
+   
